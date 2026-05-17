@@ -16,6 +16,10 @@ class DiscountedProduct extends Model
         'discount_percentage',
         'maximum_allowed_discount_percentage',
         'discount_price',
+        'discount_type',
+        'discount_value',
+        'start_date',
+        'end_date',
         'reason',
         'status',
     ];
@@ -26,6 +30,9 @@ class DiscountedProduct extends Model
         'discount_percentage' => 'decimal:2',
         'maximum_allowed_discount_percentage' => 'decimal:2',
         'discount_price' => 'decimal:2',
+        'discount_value' => 'decimal:2',
+        'start_date' => 'date',
+        'end_date' => 'date',
     ];
 
     public function variant()

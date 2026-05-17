@@ -392,24 +392,12 @@
                         <span>{{ $item['label'] }}</span>
                     </a>
                 </li>
+
                 @endforeach
+
             </ul>
             @endif
             @endforeach
-
-            <div class="menu-title">Settings</div>
-
-            <ul class="sidebar-menu">
-                <li>
-                    <a href="{{ route('admin.taxes.index') }}"
-                        class="sidebar-link {{ request()->routeIs('admin.taxes.*') ? 'active' : '' }}">
-                        <i class="bi bi-receipt-cutoff"></i>
-                        <span>Tax Settings</span>
-                    </a>
-                </li>
-            </ul>
-
-
             <div class="sidebar-footer">
                 <div class="user-name">{{ auth()->user()->name }}</div>
                 <div class="user-role">

@@ -36,4 +36,9 @@ class User extends Authenticatable
     {
         return $this->status === 'active';
     }
+
+    public function sales()
+    {
+        return $this->hasMany(Sale::class, 'cashier_id');
+    }
 }
