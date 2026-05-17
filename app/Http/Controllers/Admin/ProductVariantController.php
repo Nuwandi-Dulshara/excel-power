@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\StockMovement;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ProductVariantController extends Controller
@@ -108,7 +110,27 @@ class ProductVariantController extends Controller
         $validated['product_unit_id'] = $product->product_unit_id;
         $validated['current_stock'] = $validated['opening_stock'];
 
-        ProductVariant::create($validated);
+        DB::transaction(function () use ($validated) {
+            $variant = ProductVariant::create($validated);
+
+            if ((int) $variant->current_stock > 0) {
+                StockMovement::create([
+                    'product_variant_id' => $variant->id,
+                    'product_id' => $variant->product_id,
+                    'supplier_id' => $variant->product?->supplier_id,
+                    'movement_type' => 'initial_stock',
+                    'quantity' => $variant->current_stock,
+                    'previous_stock' => 0,
+                    'new_stock' => $variant->current_stock,
+                    'unit_cost' => $variant->purchase_price,
+                    'reason' => 'Opening stock entered when sub product was created.',
+                    'reference_type' => ProductVariant::class,
+                    'reference_id' => $variant->id,
+                    'movement_date' => today(),
+                    'created_by' => auth()->id(),
+                ]);
+            }
+        });
 
         return redirect()
             ->route('admin.products.variants.index', $product->id)
@@ -160,7 +182,29 @@ class ProductVariantController extends Controller
 
         $validated['product_unit_id'] = $product->product_unit_id;
 
-        $variant->update($validated);
+        DB::transaction(function () use ($validated, $variant) {
+            $previousStock = (int) $variant->current_stock;
+            $requestedStock = (int) $validated['current_stock'];
+
+            $variant->update($validated);
+
+            if ($requestedStock !== $previousStock) {
+                StockMovement::create([
+                    'product_variant_id' => $variant->id,
+                    'product_id' => $variant->product_id,
+                    'supplier_id' => $variant->product?->supplier_id,
+                    'movement_type' => 'adjustment',
+                    'quantity' => abs($requestedStock - $previousStock),
+                    'previous_stock' => $previousStock,
+                    'new_stock' => $requestedStock,
+                    'reason' => 'Current stock changed from sub product edit screen.',
+                    'reference_type' => ProductVariant::class,
+                    'reference_id' => $variant->id,
+                    'movement_date' => today(),
+                    'created_by' => auth()->id(),
+                ]);
+            }
+        });
 
         return redirect()
             ->route('admin.products.variants.index', $product->id)

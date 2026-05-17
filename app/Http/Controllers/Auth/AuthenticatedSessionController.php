@@ -43,7 +43,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         if ($user->hasRole('cashier')) {
-            return redirect()->route('cashier.dashboard');
+            return redirect()->route('admin.sales.index');
         }
 
         if ($user->hasRole('developer')) {

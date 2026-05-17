@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\DiscountedProduct;
 use App\Models\ProductVariant;
+use App\Models\StockMovement;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class DiscountedProductController extends Controller
@@ -71,9 +73,25 @@ class DiscountedProductController extends Controller
             ->where('status', 'active')
             ->findOrFail($validated['product_variant_id']);
 
-        $calculated = $this->calculateDiscountValues($variant, $validated);
+        DB::transaction(function () use ($variant, $validated) {
+            $calculated = $this->calculateDiscountValues($variant, $validated);
+            $discountedProduct = DiscountedProduct::create($calculated);
 
-        DiscountedProduct::create($calculated);
+            StockMovement::create([
+                'product_variant_id' => $variant->id,
+                'product_id' => $variant->product_id,
+                'supplier_id' => $variant->product?->supplier_id,
+                'movement_type' => 'discount_reserved',
+                'quantity' => $discountedProduct->discount_quantity,
+                'previous_stock' => $variant->current_stock,
+                'new_stock' => $variant->current_stock,
+                'reason' => $discountedProduct->reason ?? 'Discount stock reserved for discounted product.',
+                'reference_type' => DiscountedProduct::class,
+                'reference_id' => $discountedProduct->id,
+                'movement_date' => today(),
+                'created_by' => auth()->id(),
+            ]);
+        });
 
         return redirect()
             ->route('admin.discounted-products.index')
@@ -129,14 +147,12 @@ class DiscountedProductController extends Controller
 
         $priceReceived = $this->getPriceReceived($variant);
         $ourPrice = (float) $variant->our_price;
-        $maximumAllowedDiscountPercentage = $this->getMaximumAllowedDiscountPercentage($ourPrice, $priceReceived);
 
         return response()->json([
             'current_quantity' => $variant->current_stock,
             'price_received' => number_format($priceReceived, 2, '.', ''),
             'our_price' => number_format($ourPrice, 2, '.', ''),
             'supplier_name' => $variant->product->supplier->supplier_name ?? 'N/A',
-            'maximum_allowed_discount_percentage' => number_format($maximumAllowedDiscountPercentage, 2, '.', ''),
         ]);
     }
 
@@ -148,7 +164,10 @@ class DiscountedProductController extends Controller
                 Rule::exists('product_variants', 'id')->where('status', 'active'),
             ],
             'discount_quantity' => ['required', 'integer', 'min:1'],
-            'discount_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
+            'discount_type' => ['required', Rule::in(['percentage', 'fixed'])],
+            'discount_value' => ['required', 'numeric', 'min:0.01'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'reason' => ['nullable', 'string'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ]);
@@ -158,7 +177,8 @@ class DiscountedProductController extends Controller
     {
         $currentQuantity = (int) $variant->current_stock;
         $discountQuantity = (int) $validated['discount_quantity'];
-        $discountPercentage = (float) $validated['discount_percentage'];
+        $discountType = $validated['discount_type'];
+        $discountValue = (float) $validated['discount_value'];
 
         if ($discountQuantity > $currentQuantity) {
             abort(back()
@@ -191,26 +211,34 @@ class DiscountedProductController extends Controller
             abort(back()
                 ->withInput()
                 ->withErrors([
-                    'discount_percentage' => 'Discount cannot be created because price received is greater than or equal to our price.',
+                    'discount_value' => 'Discount cannot be created because price received is greater than or equal to our price.',
                 ]));
         }
 
         $maximumAllowedDiscountPercentage = $this->getMaximumAllowedDiscountPercentage($ourPrice, $priceReceived);
-        $discountPrice = round($ourPrice - ($ourPrice * $discountPercentage / 100), 2);
+        $discountPercentage = $discountType === 'percentage'
+            ? $discountValue
+            : round(($discountValue / $ourPrice) * 100, 2);
 
-        if ($discountPercentage > $maximumAllowedDiscountPercentage) {
+        if ($discountType === 'percentage' && $discountValue > 100) {
             abort(back()
                 ->withInput()
                 ->withErrors([
-                    'discount_percentage' => 'Discount percentage cannot be greater than the maximum allowed discount percentage.',
+                    'discount_value' => 'Percentage discount cannot be greater than 100.',
                 ]));
         }
+
+        $discountAmountPerItem = $discountType === 'percentage'
+            ? ($ourPrice * $discountValue / 100)
+            : $discountValue;
+
+        $discountPrice = round($ourPrice - $discountAmountPerItem, 2);
 
         if ($discountPrice <= $priceReceived) {
             abort(back()
                 ->withInput()
                 ->withErrors([
-                    'discount_percentage' => 'Discount price must be greater than price received.',
+                    'discount_value' => 'Discount price must be greater than price received.',
                 ]));
         }
 
@@ -224,6 +252,10 @@ class DiscountedProductController extends Controller
             'discount_percentage' => $discountPercentage,
             'maximum_allowed_discount_percentage' => $maximumAllowedDiscountPercentage,
             'discount_price' => $discountPrice,
+            'discount_type' => $discountType,
+            'discount_value' => $discountValue,
+            'start_date' => $validated['start_date'],
+            'end_date' => $validated['end_date'],
             'reason' => $validated['reason'] ?? null,
             'status' => $validated['status'],
         ];
