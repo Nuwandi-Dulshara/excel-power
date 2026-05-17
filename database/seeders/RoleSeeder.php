@@ -37,18 +37,29 @@ class RoleSeeder extends Seeder
 
         $admin->syncPermissions($permissionNames);
 
-        Role::firstOrCreate([
+        $cashier = Role::firstOrCreate([
             'name' => 'cashier',
             'guard_name' => 'web',
-        ])->update([
+        ]);
+
+        $cashier->update([
             'status' => 'active',
         ]);
 
-        Role::firstOrCreate([
+        $cashier->syncPermissions([
+            'sales.access',
+            'stocks.access',
+        ]);
+
+        $developer = Role::firstOrCreate([
             'name' => 'developer',
             'guard_name' => 'web',
-        ])->update([
+        ]);
+
+        $developer->update([
             'status' => 'active',
         ]);
+
+        $developer->syncPermissions($permissionNames);
     }
 }

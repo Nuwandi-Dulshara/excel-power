@@ -281,9 +281,11 @@
                     <th>Price Received</th>
                     <th>Our Price</th>
                     <th>Supplier</th>
-                    <th>Discount %</th>
-                    <th>Max Allowed %</th>
+                    <th>Discount Type</th>
+                    <th>Discount Value</th>
                     <th>Discount Price</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
                     <th>Reason</th>
                     <th>Status</th>
                     <th class="text-end">Actions</th>
@@ -301,9 +303,17 @@
                     <td>Rs. {{ number_format($discountedProduct->price_received, 2) }}</td>
                     <td>Rs. {{ number_format($discountedProduct->our_price, 2) }}</td>
                     <td>{{ $discountedProduct->supplier_name ?? 'N/A' }}</td>
-                    <td>{{ number_format($discountedProduct->discount_percentage, 2) }}%</td>
-                    <td>{{ number_format($discountedProduct->maximum_allowed_discount_percentage, 2) }}%</td>
+                    <td>{{ ucfirst($discountedProduct->discount_type ?? 'percentage') }}</td>
+                    <td>
+                        @if(($discountedProduct->discount_type ?? 'percentage') === 'fixed')
+                            Rs. {{ number_format($discountedProduct->discount_value ?: 0, 2) }}
+                        @else
+                            {{ number_format($discountedProduct->discount_value ?: $discountedProduct->discount_percentage, 2) }}%
+                        @endif
+                    </td>
                     <td class="fw-bold text-danger">Rs. {{ number_format($discountedProduct->discount_price, 2) }}</td>
+                    <td>{{ $discountedProduct->start_date ? $discountedProduct->start_date->format('Y-m-d') : 'N/A' }}</td>
+                    <td>{{ $discountedProduct->end_date ? $discountedProduct->end_date->format('Y-m-d') : 'N/A' }}</td>
                     <td class="reason-cell">{{ $discountedProduct->reason ? \Illuminate\Support\Str::limit($discountedProduct->reason, 80) : 'N/A' }}</td>
 
                     <td>
@@ -334,7 +344,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="14">
+                    <td colspan="16">
                         <div class="empty-box">
                             <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                             No discounted products found.

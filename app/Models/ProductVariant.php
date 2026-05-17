@@ -43,10 +43,26 @@ class ProductVariant extends Model
         return $this->belongsTo(Product::class);
     }
 
-        public function discountedProducts()
+    public function discountedProducts()
     {
         return $this->hasMany(DiscountedProduct::class);
     }
+
+    public function stockMovements()
+    {
+        return $this->hasMany(StockMovement::class);
+    }
+
+    public function damagedItems()
+    {
+        return $this->hasMany(DamagedItem::class);
+    }
+
+    public function returnedItems()
+    {
+        return $this->hasMany(ReturnedItem::class);
+    }
+
     public function unit()
     {
         return $this->belongsTo(ProductUnit::class, 'product_unit_id');

@@ -147,11 +147,6 @@ $selectedVariant = $variants->firstWhere('id', $selectedVariantId);
     </div>
 
     <div class="form-body">
-        <div class="info-note mb-4">
-            <i class="bi bi-info-circle me-1"></i>
-            Discount price must always be greater than price received.
-        </div>
-
         <form method="POST" action="{{ $formAction }}">
             @csrf
 
@@ -226,23 +221,46 @@ $selectedVariant = $variants->firstWhere('id', $selectedVariantId);
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label">Maximum Allowed Discount Percentage</label>
-                    <input type="text" id="maximum_allowed_discount_percentage" class="form-control theme-control"
-                        readonly>
+                    <label class="form-label">Discount Type <span class="text-danger">*</span></label>
+                    <select name="discount_type" id="discount_type" class="form-select theme-control" required>
+                        <option value="">Select Discount Type</option>
+                        <option value="percentage"
+                            {{ old('discount_type', optional($discountedProduct)->discount_type ?? 'percentage') == 'percentage' ? 'selected' : '' }}>
+                            Percentage</option>
+                        <option value="fixed"
+                            {{ old('discount_type', optional($discountedProduct)->discount_type) == 'fixed' ? 'selected' : '' }}>
+                            Fixed Amount</option>
+                    </select>
+                    @error('discount_type') <div class="error-msg">{{ $message }}</div> @enderror
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label">Discount Percentage <span class="text-danger">*</span></label>
-                    <input type="number" step="0.01" min="0" max="100" name="discount_percentage"
-                        id="discount_percentage"
-                        value="{{ old('discount_percentage', optional($discountedProduct)->discount_percentage) }}"
-                        class="form-control theme-control" required>
-                    @error('discount_percentage') <div class="error-msg">{{ $message }}</div> @enderror
+                    <label class="form-label">Discount Value <span class="text-danger">*</span></label>
+                    <input type="number" step="0.01" min="0.01" name="discount_value" id="discount_value"
+                        value="{{ old('discount_value', optional($discountedProduct)->discount_value ?: optional($discountedProduct)->discount_percentage) }}"
+                        class="form-control theme-control" placeholder="Example: 10 for 10% or 50 for Rs. 50" required>
+                    @error('discount_value') <div class="error-msg">{{ $message }}</div> @enderror
                 </div>
 
                 <div class="col-md-6">
                     <label class="form-label">Discount Price</label>
                     <input type="text" id="discount_price" class="form-control theme-control" readonly>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Start Date <span class="text-danger">*</span></label>
+                    <input type="date" name="start_date"
+                        value="{{ old('start_date', optional(optional($discountedProduct)->start_date)->format('Y-m-d')) }}"
+                        class="form-control theme-control" required>
+                    @error('start_date') <div class="error-msg">{{ $message }}</div> @enderror
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">End Date <span class="text-danger">*</span></label>
+                    <input type="date" name="end_date"
+                        value="{{ old('end_date', optional(optional($discountedProduct)->end_date)->format('Y-m-d')) }}"
+                        class="form-control theme-control" required>
+                    @error('end_date') <div class="error-msg">{{ $message }}</div> @enderror
                 </div>
 
                 <div class="col-md-12">
@@ -292,8 +310,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const priceReceived = document.getElementById('price_received');
     const ourPrice = document.getElementById('our_price');
     const supplierName = document.getElementById('supplier_name');
-    const maxAllowed = document.getElementById('maximum_allowed_discount_percentage');
-    const discountPercentage = document.getElementById('discount_percentage');
+    const discountType = document.getElementById('discount_type');
+    const discountValue = document.getElementById('discount_value');
     const discountPrice = document.getElementById('discount_price');
 
     function clearDetails() {
@@ -301,20 +319,23 @@ document.addEventListener('DOMContentLoaded', function() {
         priceReceived.value = '';
         ourPrice.value = '';
         supplierName.value = '';
-        maxAllowed.value = '';
         discountPrice.value = '';
     }
 
     function calculateDiscountPrice() {
         const our = parseFloat(ourPrice.value || 0);
-        const percentage = parseFloat(discountPercentage.value || 0);
+        const value = parseFloat(discountValue.value || 0);
 
         if (our <= 0) {
             discountPrice.value = '';
             return;
         }
 
-        const calculated = our - (our * percentage / 100);
+        const discountAmount = discountType.value === 'fixed'
+            ? value
+            : (our * value / 100);
+        const calculated = our - discountAmount;
+
         discountPrice.value = calculated.toFixed(2);
     }
 
@@ -333,7 +354,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 priceReceived.value = data.price_received;
                 ourPrice.value = data.our_price;
                 supplierName.value = data.supplier_name;
-                maxAllowed.value = data.maximum_allowed_discount_percentage + '%';
                 calculateDiscountPrice();
             })
             .catch(() => {
@@ -390,7 +410,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    discountPercentage.addEventListener('input', calculateDiscountPrice);
+    discountType.addEventListener('change', calculateDiscountPrice);
+    discountValue.addEventListener('input', calculateDiscountPrice);
 
     document.addEventListener('click', function(event) {
         if (!event.target.closest('.searchable-dropdown')) {
